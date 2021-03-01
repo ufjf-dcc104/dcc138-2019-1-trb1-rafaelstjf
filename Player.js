@@ -1,134 +1,141 @@
-function Player(row0, column0) {
-    this.posColumn = column0;
-    this.posRow = row0;
-    this.posColumn0 = column0;
-    this.x = column0 * 32;
-    this.y = row0 * 32;
-    this.posRow0 = row0;
-    this.w = 32;
-    this.h = 32;
-    this.boxColliderW = 32;
-    this.boxColliderH = 32;
-    this.vColumn = 0;
-    this.maxSpeed = 4;
-    this.vRow = 0;
-    this.movingDir = "none";
-    this.color = "red";
-    this.strokeColor = "black";
-    this.immunity = false;
-    this.lastImunity = 0;
-    this.life = 3;
-    this.score = 0;
-    this.maxBombs = 2;
-    this.objectsThatCollide = [2, 3, 5];
-}
+class Player {
+    constructor(row, column) {
+        //current Position in the grid
+        this.posColumn = column;
+        this.posRow = row;
+        //initial position in the grid
+        this.posColumn0 = column;
+        this.posRow0 = row;
+        //current coordinates
+        this.x = column * 32;
+        this.y = row * 32;
+        //size
+        this.w = 32;
+        this.h = 32;
+        //speed on X and Y axes
+        this.vColumn = 0; //X
+        this.vRow = 0; //Y
+        this.maxSpeed = 100; //maximum speed
+        this.movingDir = "none"; //movement direction
+        //game control
+        this.immunity = false;
+        this.lastImunity = 0;
+        this.life = 3;
+        this.score = 0;
+        this.maxBombs = 1;
+        this.objectsThatCollide = [2, 3, 5];
+        this.frame = 0;
+        this.walkSoundCD = 0;
+        this.bombs = [];
 
-Player.prototype.move = function (dt, numRows, numColumns, grid) {
-    /*
-       * Calculates the position on the grid based in the player's X and Y values
-    */
-    var r1 = (this.y + this.vRow) % 32;
-    var r2 = (this.x + this.vColumn) % 32;
-    var newPosRow;
-    var newPosColumn;
-    var oldPosRow = this.posRow;
-    var oldPosColumn = this.posColumn;
-    if (r1 >= (this.h  * 0.6))
-        newPosRow = Math.ceil((this.y + this.vRow) / 32);
-    else
-        newPosRow = Math.floor((this.y + this.vRow) / 32);
-    if (r2 >= (this.w * 0.6))
-        newPosColumn = Math.ceil((this.x + this.vColumn) / 32);
-    else
-        newPosColumn = Math.floor((this.x + this.vColumn) / 32);
-    if (newPosColumn >= 0 && newPosColumn < numColumns) {
-        if (this.vColumn > 0)
-            this.movingDir = "right";
-        else if (this.vColumn < 0)
-            this.movingDir = "left";
-        this.x = this.x + this.vColumn;
-        //this.vColumn = 0;
-        this.posColumn = newPosColumn;
     }
+    spawnBomb() {
+        if (this.bombs.length < this.maxBombs) {
+            this.bombs.push(new Bomb(Math.floor(this.y / 32), Math.floor(this.x / 32)));
+            assetsManager.play("spawn_bomb");
 
-    if (newPosRow >= 0 && newPosRow < numRows) {
-        if (this.vRow < 0)
-            this.movingDir = "up";
-        else if (this.vRow > 0)
-            this.movingDir = "down";
-        this.y = this.y + this.vRow;
-        //this.vRow = 0;
-        this.posRow = newPosRow;
+        }
     }
-    /*
-    * First it frees the current position in the grid and then sets the new one
-    */
-    if (grid[oldPosRow][oldPosColumn].layer == 1)
-        grid[oldPosRow][oldPosColumn].layer = 0;
-    if (grid[this.posRow][this.posColumn].layer == 0)
-        grid[this.posRow][this.posColumn].layer = 1;
-    /*
-    * It corrects the X and Y axes after moving 
-    */
-    if (this.movingDir == "up" || this.movingDir == "down")
-        this.x = grid[this.posRow][this.posColumn].x;
-    if (this.movingDir == "left" || this.movingDir == "right")
-        this.y = grid[this.posRow][this.posColumn].y;
-    //updates the imunity
-    if (this.immunity) {
-        if (this.lastImunity >= 3) {
-            this.lastImunity = 0;
-            this.immunity = false;
+    move(dt, grid, assetsManager) {
+        //walking sound
+        if (this.vColumn != 0 || this.vRow != 0) {
+            if (this.walkSoundCD < 1.5) {
+                this.walkSoundCD = this.walkSoundCD + this.walkSoundCD * dt;
+            } else {
+                assetsManager.play("walk");
+                this.walkSoundCD = 1;
+            }
+        } else
+            this.walkSoundCD = 2;
+        var nRow;
+        if (this.vRow != 0)
+            nRow = Math.floor((this.y + 1 * (this.vRow / Math.abs(this.vRow))) / 32);
+        else
+            nRow = Math.floor(this.y / 32);
+        var nColumn;
+        if (this.vColumn != 0) {
+            nColumn = Math.floor((this.x + 1 * (this.vColumn / Math.abs(this.vColumn))) / 32);
+        }
+        else
+            nColumn = Math.floor(this.x / 32);
+        var a;
+        if (this.vRow == 0) a = 0;
+        else a = (this.vRow) / Math.abs(this.vRow);
+        var b;
+        if (this.vColumn == 0) b = 0;
+        else b = (this.vColumn) / Math.abs(this.vColumn);
+        if (grid.checkMovement(this.objectsThatCollide, (this.posRow + a), (this.posColumn + b))) {
+            this.y = this.y + this.vRow * dt;
+            this.x = this.x + this.vColumn * dt;
+            grid.cellsArray[this.posRow][this.posColumn].layer = 0;
+            grid.cellsArray[nRow][nColumn].layer = 1;
+            if (nRow != this.posRow || nColumn != this.posColumn) {
+                grid.cellsArray[this.posRow][this.posColumn].layer = 0;
+                this.posRow = nRow;
+                this.posColumn = nColumn;
+            }
+            var oldDir = this.movingDir;
+            if (this.vColumn > 0)
+                this.movingDir = "right";
+            if (this.vColumn < 0)
+                this.movingDir = "left";
+            if (this.vRow > 0)
+                this.movingDir = "down";
+            if (this.vRow < 0)
+                this.movingDir = "up";
+            if (this.vRow == 0 && this.vColumn == 0) {
+                this.frame = 0
+                this.movingDir = "none";
+            }
+            if (oldDir != this.movingDir)
+                this.frame = 0;
+            var curPosLayer = grid.cellsArray[this.posRow][this.posColumn].layer;
+            if ((curPosLayer == 4 || curPosLayer == 6) && !this.immunity) {
+                this.immunity = true;
+                this.life--;
+                assetsManager.play("hit");
+            }
         } else {
-            this.lastImunity = this.lastImunity + dt;
+            this.x = grid.cellsArray[this.posRow][this.posColumn].x;
+            this.y = grid.cellsArray[this.posRow][this.posColumn].y;
         }
     }
-}
-Player.prototype.checkCollision = function (grid, numRows, numColumns) {
+    reset() {
+        this.posColumn = this.posColumn0;
+        this.posRow = this.posRow0;
+        this.x = this.posColumn * 32;
+        this.y = this.posRow * 32;
+        this.vColumn = 0;
+        this.vRow = 0;
+        this.life = 3;
+        this.score = 0;
+        this.maxBombs = 1;
+    }
+    draw(ctx, dt, assetsManager) {
+        this.frame += 6 * dt;
+        var F = Math.floor(this.frame);
+        var key = "player";
+        if (this.immunity) {
+            key = "player_damaged";
+            if (this.lastImunity >= 3) {
+                this.lastImunity = 0;
+                this.immunity = false;
+            } else {
+                this.lastImunity = this.lastImunity + dt;
+            }
+        }
+        if (this.movingDir == "down") {
+            ctx.drawImage(assetsManager.images[key], (F % 3) * 17, 0, 17, 17, this.x, this.y, this.w, this.h);
+        } else if (this.movingDir == "up") {
+            ctx.drawImage(assetsManager.images[key], (F % 3) * 17, 34, 17, 17, this.x, this.y, this.w, this.h);
 
-    for (var i = 0; i < this.objectsThatCollide.length; i++) {
-        if (grid[this.posRow][this.posColumn].layer == this.objectsThatCollide[i]) { //wall
-            console.log(this.posRow, this.posRow);
-            if (this.movingDir == "right")
-                this.x = this.x - 16;
-            else if (this.movingDir == "left")
-                this.x = this.x + 16;
-            else if (this.movingDir == "up")
-                this.y = this.y + 16;
-            else if (this.movingDir == "down")
-                this.y = this.y - 16;
-            this.movingDir = "none";
-            //console.log(this.posRow, this.posRow);
+        } else if (this.movingDir == "left") {
+            ctx.drawImage(assetsManager.images[key], (F % 3) * 17, 51, 17, 17, this.x, this.y, this.w, this.h);
+
+        } else if (this.movingDir == "right") {
+            ctx.drawImage(assetsManager.images[key], (F % 3) * 17, 17, 17, 17, this.x, this.y, this.w, this.h);
+        } else {
+            ctx.drawImage(assetsManager.images[key], (F % 3) * 17, 68, 17, 17, this.x, this.y, this.w, this.h);
         }
     }
-    if ((grid[this.posRow][this.posColumn].layer == 4 || grid[this.posRow][this.posColumn].layer == 6) && !this.immunity) {//enemy
-        this.immunity = true;
-        this.life--;
-    }
-}
-Player.prototype.reset = function () {
-    //restore the variables to their default value
-    this.posColumn = this.posColumn0;
-    this.posRow = this.posRow0;
-    this.x = this.posColumn * 32;
-    this.y = this.posRow * 32;
-    this.vColumn = 0;
-    this.vRow = 0;
-    this.life = 3;
-    this.score = 0;
-    this.maxBombs = 1;
-}
-
-Player.prototype.draw = function (ctx, grid) {
-    ctx.fillStyle = this.color;
-    if (this.immunity)
-        ctx.fillStyle = "white";
-    ctx.fillRect(this.x, this.y, this.w, this.h);
-    /*
-    ctx.save();
-    ctx.translate(this.posColumn * 32, this.posRow * 32);
-    ctx.fillStyle = this.color;
-    ctx.fillRect(-this.w / 2, -this.h / 2, this.w, this.h);
-    ctx.restore();
-    */
 }

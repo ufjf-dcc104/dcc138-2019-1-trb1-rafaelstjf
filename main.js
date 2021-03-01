@@ -1,106 +1,78 @@
-var dt = prevTime = 0;
-var debug = false; //to see the hit boxes
+var dt = 0;
+var prevTime = 0;
+var debug = false;
 var inGame = false;
-var maxSpeed = 200;
-var canvasPartition = 4;
-var grid = [];
-var numColumns = 640 / 32;
-var numRows = 480 / 32;
 var highScore = 0;
-var level = 0;
+var level = 1;
 var enemies = [];
-var bombs = [];
-var player = new Player(1, 1); //creates the player's object
-/*
-------------Grid Codes----------------
-0 - Free
-1 - Player
-2 - Indestructible wall
-3 - Destructible wall
-4 - Enemies
-5 - Bombs
-6 - Bomb activated
-7 - Power-ups
-*/
-//build grid
-for (var i = 0; i < numRows; i++) {
-    grid[i] = [];
+var player = new Player(1, 1);
+var grid = new Grid(640, 480, 32, 32);
+var assetsManager = new AssetsManager();
+//BUILD MATRIX FOR EXAMPLE
+var m = [];
+for (var i = 0; i < grid.numRows; i++) {
+    m[i] = [];
 }
-for (var i = 0; i < numRows; i++) {
-    for (var j = 0; j < numColumns; j++) {
-        coordinates = {
-            x: j * 32,
-            y: i * 32,
-            layer: 0
-        };
-        grid[i][j] = coordinates;
+for (var i = 0; i < grid.numRows; i++) {
+    for (var j = 0; j < grid.numColumns; j++) {
+
+        m[i][j] = 0;
     }
 }
-for (var j = 0; j < numColumns; j++) {
-    grid[numRows - 1][j].layer = 2;
-    grid[0][j].layer = 2;
+for (var j = 0; j < grid.numColumns; j++) {
+    m[grid.numRows - 1][j] = 2;
+    m[0][j] = 2;
 }
-for (var i = 0; i < numRows; i++) {
-    grid[i][numColumns - 1].layer = 2;
-    grid[i][0].layer = 2;
+for (var i = 0; i < grid.numRows; i++) {
+    m[i][grid.numColumns - 1] = 2;
+    m[i][0] = 2;
 }
-for (var j = 3; j < numColumns - 5; j++) {
-    grid[numRows - 5][j].layer = 3;
+for (var j = 3; j < grid.numColumns - 5; j++) {
+    m[grid.numRows - 5][j] = 3;
 }
-for (var j = 3; j < numColumns - 5; j++) {
-    grid[5][j].layer = 2;
+for (var j = 3; j < grid.numColumns - 5; j++) {
+    m[5][j] = 2;
 }
-//creates enemies
-function createEnemies() {
-    for (var i = 0; i < 5; i++) {
-        var posRow = parseInt(Math.random() * numRows);
-        var posCol = parseInt(Math.random() * numColumns);
-        while (grid[posRow][posCol].layer > 0) {
-            posRow = parseInt(Math.random() * numRows);
-            posCol = parseInt(Math.random() * numColumns);
+function loadImages() {
+    //load images
+    assetsManager.loadImage("free", "Assets/Sprites/floor.png");
+    assetsManager.loadImage("desWall", "Assets/Sprites/destructibleWall.png");
+    assetsManager.loadImage("indesWall", "Assets/Sprites/indestructibleWall.png");
+    assetsManager.loadImage("portrait", "Assets/Sprites/portrait.png");
+    assetsManager.loadImage("player", "Assets/Sprites/player_tileset.png");
+    assetsManager.loadImage("player_damaged", "Assets/Sprites/player_tileset2.png");
+    assetsManager.loadImage("bomb", "Assets/Sprites/bomb.png");
+    assetsManager.loadImage("explosion", "Assets/Sprites/explosion.png");
+    while (assetsManager.progress < 100) {
+        console.log("Loading images..");
+    }
+}
+function loadAudios() {
+    assetsManager.loadAudio("walk", "Assets/Sounds/walk.wav");
+    assetsManager.loadAudio("background", "Assets/Sounds/background.mp3");
+    assetsManager.loadAudio("hit", "Assets/Sounds/hit.wav");
+    assetsManager.loadAudio("explosion", "Assets/Sounds/explosion.wav");
+    assetsManager.loadAudio("spawn_bomb", "Assets/Sounds/spawn_bomb.wav");
+    while (assetsManager.progress < 100) {
+        console.log("Loading audios..");
+    }
+}
+function createEnemies(numEnemies) {
+    enemies.splice(0, enemies.length);
+    for (var i = 0; i < numEnemies; i++) {
+        var posRow = Math.floor(Math.random() * grid.numRows);
+        var posCol = Math.floor(Math.random() * grid.numColumns);
+        while (grid.cellsArray[posRow][posCol].layer > 0) {
+            posRow = Math.floor(Math.random() * grid.numRows);
+            posCol = Math.floor(Math.random() * grid.numColumns);
         }
         enemies.push(new Enemy(posRow, posCol));
     }
 }
-
-//Grid Functions
-function drawGrid() {
-    for (var i = 0; i < numRows; i++) {
-        for (var j = 0; j < numColumns; j++) {
-            if (grid[i][j].layer == 2) {
-                ctx.fillStyle = "blue";
-                ctx.fillRect(grid[i][j].x, grid[i][j].y, 32, 32);
-                ctx.strokeStyle = "gray";
-                ctx.strokeRect(grid[i][j].x, grid[i][j].y, 32, 32);
-            } else if (grid[i][j].layer == 0) {
-
-                ctx.strokeStyle = "black";
-                ctx.strokeRect(grid[i][j].x, grid[i][j].y, 32, 32);
-            } else if (grid[i][j].layer == 3) {
-                ctx.fillStyle = "gray";
-                ctx.fillRect(grid[i][j].x, grid[i][j].y, 32, 32);
-                ctx.strokeStyle = "darkgray";
-                ctx.strokeRect(grid[i][j].x, grid[i][j].y, 32, 32);
-            } else if (grid[i][j].layer == 1) {
-                ctx.fillStyle = "black";
-                ctx.fillRect(grid[i][j].x, grid[i][j].y, 32, 32);
-            }
-            if (debug) {
-                ctx.font = "8px Arial";
-                ctx.fillStyle = "white";
-                ctx.fillText(i + ' : ' + j, grid[i][j].x + 5, grid[i][j].y + 16);
-                ctx.fillText(grid[i][j].layer, grid[i][j].x + 5, grid[i][j].y + 30);
-            }
-        }
-    }
-}
-
-//general functions
 function clearCanvas() {
     //clear the canvas
     ctx.fillStyle = "green";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-
 }
 function drawGameOverScreen() {
     ctx.fillStyle = "black";
@@ -122,67 +94,49 @@ function drawHUD() {
     ctx.strokeRect(0, 482, canvas.width, canvas.height - 482);
     ctx.lineWidth = 1;
     //Draws HUD text
-    ctx.fillStyle = "red";
-    ctx.fillRect(10, 525, 32, 32);
+    //ctx.fillStyle = "red";
+    //ctx.fillRect(10, 525, 32, 32);
+    ctx.drawImage(assetsManager.images["portrait"], 10, 500, 64, 64);
     ctx.font = "30px Arial";
     ctx.fillStyle = "white";
-    ctx.fillText("x" + player.life, 70, 550);
+    ctx.fillText("x" + player.life, 90, 550);
+    ctx.fillText("LEVEL " + level, 300, 550);
+    ctx.font = "26px Arial";
+    ctx.fillText("Score " + player.score, 500, 550);
 }
 function moveObjects() {
-    player.move(dt, numRows, numColumns, grid);
+    player.move(dt, grid, assetsManager);
     for (var i = 0; i < enemies.length; i++) {
-        enemies[i].move(dt, numRows, numColumns, grid);
+        enemies[i].move(dt, grid);
     }
-    for (var i = 0; i < bombs.length; i++) {
-        bombs[i].behave(dt, grid, numRows, numColumns);
-        if (bombs[i].explosionComplete) {
-            bombs.splice(i, 1);
+    for (var i = 0; i < player.bombs.length; i++) {
+        player.bombs[i].behave(dt, grid);
+        if (player.bombs[i].explosionComplete) {
+            player.bombs.splice(i, 1);
+        }
+    }
+    for (var i = 0; i < enemies.length; i++) {
+        if (!enemies[i].alive)
+            enemies.splice(i, 1);
+    }
+    for (var i = 0; i < player.bombs.length; i++) {
+        if (player.bombs[i].explosionComplete) {
+            player.bombs.splice(i, 1);
         }
     }
 }
 function drawObjects() {
-    drawGrid();
+    grid.draw(ctx, assetsManager);
     for (var i = 0; i < enemies.length; i++) {
         enemies[i].draw(ctx, grid);
     }
-    for (var i = 0; i < bombs.length; i++) {
-        bombs[i].draw(ctx, grid, numRows, numColumns);
+    for (var i = 0; i < player.bombs.length; i++) {
+        player.bombs[i].draw(ctx, grid);
     }
-    player.draw(ctx, grid);
-}
+    player.draw(ctx, dt, assetsManager);
+    drawHUD();
 
-function checkCollisionObjects() {
-    player.checkCollision(grid, numRows, numColumns);
-    for (var i = 0; i < enemies.length; i++) {
-        enemies[i].checkCollision(grid, numRows, numColumns);
-        if (!enemies[i].alive)
-            enemies.splice(i, 1);
-    }
-    for (var i = 0; i < bombs.length; i++) {
-        if (bombs[i].explosionComplete) {
-            bombs.splice(i, 1);
-        }
-    }
 }
-function loop(t) {
-    if (inGame == true) {
-        clearCanvas();
-        drawHUD();
-        dt = (t - prevTime) / 1000;
-        moveObjects() //move them first and then check collisions
-        checkCollisionObjects();
-        drawObjects();
-        if (player.life == 0)
-            inGame = false;
-        prevTime = t;
-    } else {
-        drawGameOverScreen();
-    }
-    requestAnimationFrame(loop);
-}
-
-requestAnimationFrame(loop);
-
 addEventListener("keydown", function (e) {
 
     if (e.keyCode == 37)//left
@@ -193,15 +147,16 @@ addEventListener("keydown", function (e) {
         player.vColumn = player.maxSpeed;
     if (e.keyCode == 40)//down
         player.vRow = player.maxSpeed;
+    if (e.keyCode == 32) {
+        if (inGame) {
+            player.spawnBomb();
+        }
+    }
 });
 addEventListener("keyup", function (e) {
     switch (e.keyCode) {
         case 32: //space key
-            if (inGame) {
-                if (bombs.length < player.maxBombs) {
-                    bombs.push(new Bomb(player.posRow, player.posColumn));
-                }
-            } else {
+            if (!inGame) {
                 player.reset();
                 createEnemies();
                 inGame = true;
@@ -209,20 +164,37 @@ addEventListener("keyup", function (e) {
             break;
         case 37: //left arrow key
             player.vColumn = 0;
-            player.movingDir = "none";
             break;
         case 38: //up arrow key
-            player.movingDir = "none";
             player.vRow = 0;
             break;
         case 39: //right arrow key
-            player.movingDir = "none";
             player.vColumn = 0;
             break;
         case 40: //down arrow key
-            player.movingDir = "none";
             player.vRow = 0;
             break;
         default:
     }
 });
+function loop(t) {
+    if (inGame == true) {
+        clearCanvas();
+        dt = (t - prevTime) / 1000;
+        moveObjects() //move them first and then check collisions
+        drawObjects();
+        if (player.life == 0)
+            inGame = false;
+        prevTime = t;
+    } else {
+        drawGameOverScreen();
+    }
+    requestAnimationFrame(loop);
+}
+//------------------------------------
+loadImages();
+loadAudios();
+grid.buildFromMatrix(m);
+createEnemies(5);
+requestAnimationFrame(loop);
+
